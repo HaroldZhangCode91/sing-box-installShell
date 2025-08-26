@@ -1,6 +1,6 @@
 #!/bin/bash
-# Sing-Box Server 一键安装脚本
-# 支持 Ubuntu/Debian/CentOS 系统
+# 修正版 Sing-Box Server 一键安装脚本
+# 修复了GitHub下载地址拼接问题，支持Ubuntu/Debian/CentOS
 
 # 检查是否为root用户
 if [ "$(id -u)" -ne 0 ]; then
@@ -38,10 +38,12 @@ install_dependencies() {
 install_singbox() {
     echo "正在安装Sing-Box..."
     
-    # 获取最新版本
-    LATEST_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
+    # 获取最新版本（去除v前缀）
+    LATEST_TAG=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
+    # 去除版本号中的v前缀（如v1.12.3 → 1.12.3）
+    LATEST_VERSION=${LATEST_TAG#v}
     
-    # 根据系统架构下载
+    # 根据系统架构确定下载文件名
     ARCH=$(uname -m)
     case $ARCH in
         x86_64)
@@ -56,16 +58,35 @@ install_singbox() {
             ;;
     esac
     
+    # 构建正确的下载链接（匹配格式：sing-box-v1.12.3-linux-amd64.zip）
+    DOWNLOAD_URL="https://github.com/SagerNet/sing-box/releases/download/${LATEST_TAG}/sing-box-${LATEST_TAG}-linux-${ARCH}.zip"
+    
+    # 显示下载链接用于调试
+    echo "下载地址: $DOWNLOAD_URL"
+    
     # 下载安装包
-    wget -O /tmp/sing-box.zip "https://github.com/SagerNet/sing-box/releases/download/$LATEST_VERSION/sing-box-$LATEST_VERSION-linux-$ARCH.zip"
+    if ! wget -O /tmp/sing-box.zip "$DOWNLOAD_URL"; then
+        echo "下载失败，请检查网络或版本是否存在"
+        exit 1
+    fi
     
     # 解压并安装
     unzip -q /tmp/sing-box.zip -d /tmp
-    mv /tmp/sing-box-$LATEST_VERSION-linux-$ARCH/sing-box /usr/local/bin/
+    # 解压后的文件夹名称格式为 sing-box-v1.12.3-linux-amd64
+    UNZIP_DIR="/tmp/sing-box-${LATEST_TAG}-linux-${ARCH}"
+    if [ ! -d "$UNZIP_DIR" ]; then
+        echo "解压失败，未找到目录: $UNZIP_DIR"
+        exit 1
+    fi
+    
+    mv "$UNZIP_DIR/sing-box" /usr/local/bin/
     chmod +x /usr/local/bin/sing-box
     
     # 创建配置目录
     mkdir -p /etc/sing-box
+    
+    # 清理临时文件
+    rm -rf /tmp/sing-box.zip "$UNZIP_DIR"
 }
 
 # 生成配置文件
@@ -86,17 +107,18 @@ generate_config() {
     cat > /etc/sing-box/config.json << EOF
 {
   "log": {
-    "level": "info",
+    "level": "warning",
     "timestamp": true
   },
   "inbounds": [
     {
       "type": "shadowsocks",
       "listen": "0.0.0.0",
-      "port": $PORT,
+      "listen_port": $PORT,
       "password": "$PASSWORD",
       "method": "$METHOD",
-      "udp": true
+      "udp": true,
+      "tcp_fast_open": true
     }
   ],
   "outbounds": [
