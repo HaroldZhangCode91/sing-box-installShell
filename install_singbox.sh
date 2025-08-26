@@ -1,11 +1,28 @@
 #!/bin/bash
-# 修正版 Sing-Box Server 一键安装脚本
-# 移除了udp字段，适配最新版本Sing-Box，支持Ubuntu/Debian/CentOS
+# 优化版 Sing-Box Server 一键安装脚本
+# 支持手动指定端口，适配Azure等需要提前配置安全组的环境
 
 # 检查是否为root用户
 if [ "$(id -u)" -ne 0 ]; then
     echo "请使用root用户运行此脚本 (sudo -i)"
     exit 1
+fi
+
+# 检查端口参数，允许手动指定
+if [ $# -eq 1 ]; then
+    PORT=$1
+    # 验证端口是否在有效范围
+    if ! [[ $PORT =~ ^[0-9]+$ ]] || [ $PORT -lt 1024 ] || [ $PORT -gt 65535 ]; then
+        echo "端口必须是1024-65535之间的数字"
+        exit 1
+    fi
+else
+    # 未指定端口时提示用户输入
+    read -p "请输入端口号(1024-65535，建议提前在Azure安全组开放)：" PORT
+    if ! [[ $PORT =~ ^[0-9]+$ ]] || [ $PORT -lt 1024 ] || [ $PORT -gt 65535 ]; then
+        echo "无效端口，必须是1024-65535之间的数字"
+        exit 1
+    fi
 fi
 
 # 检查系统类型
@@ -63,7 +80,7 @@ install_singbox() {
             ;;
     esac
     
-    # 构建正确的下载链接（文件名中版本号不含v前缀）
+    # 构建正确的下载链接
     DOWNLOAD_URL="https://github.com/SagerNet/sing-box/releases/download/${LATEST_TAG}/sing-box-${LATEST_VERSION}-linux-${ARCH}.tar.gz"
     
     # 显示下载链接用于调试
@@ -96,12 +113,9 @@ install_singbox() {
     rm -rf /tmp/sing-box.tar.gz /tmp/sing-box
 }
 
-# 生成配置文件（移除了udp字段）
+# 生成配置文件（使用指定端口）
 generate_config() {
     echo "正在生成配置文件..."
-    
-    # 随机端口(10000-65535)
-    PORT=$((RANDOM % 55535 + 10000))
     
     # 随机密码
     PASSWORD=$(head -c 16 /dev/urandom | base64)
@@ -110,7 +124,7 @@ generate_config() {
     METHODS=("aes-256-gcm" "chacha20-ietf-poly1305" "xchacha20-ietf-poly1305")
     METHOD=${METHODS[$RANDOM % ${#METHODS[@]}]}
     
-    # 创建配置文件（移除了udp: true字段）
+    # 创建配置文件
     cat > /etc/sing-box/config.json << EOF
 {
   "log": {
@@ -137,7 +151,7 @@ EOF
 
     echo "配置信息如下(请保存)："
     echo "服务器IP: $(curl -s icanhazip.com)"
-    echo "端口: $PORT"
+    echo "端口: $PORT"  # 显示用户指定的端口
     echo "密码: $PASSWORD"
     echo "加密方式: $METHOD"
     echo "协议: shadowsocks"
@@ -192,7 +206,7 @@ main() {
     generate_config
     open_firewall
     setup_service
-    echo "Sing-Box Server 安装完成！"
+    echo "Sing-Box Server 安装完成！请确保已在Azure安全组开放端口 $PORT 的TCP和UDP"
 }
 
 main
