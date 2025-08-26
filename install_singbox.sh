@@ -1,6 +1,6 @@
 #!/bin/bash
 # 修正版 Sing-Box Server 一键安装脚本
-# 完全修复文件名格式，版本号不含v前缀，支持Ubuntu/Debian/CentOS
+# 移除了udp字段，适配最新版本Sing-Box，支持Ubuntu/Debian/CentOS
 
 # 检查是否为root用户
 if [ "$(id -u)" -ne 0 ]; then
@@ -96,7 +96,7 @@ install_singbox() {
     rm -rf /tmp/sing-box.tar.gz /tmp/sing-box
 }
 
-# 生成配置文件
+# 生成配置文件（移除了udp字段）
 generate_config() {
     echo "正在生成配置文件..."
     
@@ -110,7 +110,7 @@ generate_config() {
     METHODS=("aes-256-gcm" "chacha20-ietf-poly1305" "xchacha20-ietf-poly1305")
     METHOD=${METHODS[$RANDOM % ${#METHODS[@]}]}
     
-    # 创建配置文件
+    # 创建配置文件（移除了udp: true字段）
     cat > /etc/sing-box/config.json << EOF
 {
   "log": {
@@ -124,7 +124,6 @@ generate_config() {
       "listen_port": $PORT,
       "password": "$PASSWORD",
       "method": "$METHOD",
-      "udp": true,
       "tcp_fast_open": true
     }
   ],
