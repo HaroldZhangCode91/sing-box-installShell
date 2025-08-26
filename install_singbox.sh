@@ -1,6 +1,6 @@
 #!/bin/bash
 # 修正版 Sing-Box Server 一键安装脚本
-# 修复了文件格式问题，使用tar.gz替代zip，支持Ubuntu/Debian/CentOS
+# 完全修复文件名格式，版本号不含v前缀，支持Ubuntu/Debian/CentOS
 
 # 检查是否为root用户
 if [ "$(id -u)" -ne 0 ]; then
@@ -25,9 +25,9 @@ install_dependencies() {
     echo "正在安装依赖..."
     if [[ $OS == *"Ubuntu"* || $OS == *"Debian"* ]]; then
         apt update -y
-        apt install -y wget curl tar  # 替换unzip为tar
+        apt install -y wget curl tar
     elif [[ $OS == *"CentOS"* || $OS == *"RedHat"* ]]; then
-        yum install -y wget curl tar  # 替换unzip为tar
+        yum install -y wget curl tar
     else
         echo "不支持的操作系统"
         exit 1
@@ -38,12 +38,15 @@ install_dependencies() {
 install_singbox() {
     echo "正在安装Sing-Box..."
     
-    # 获取最新版本标签（包含v前缀）
+    # 获取最新版本标签（包含v前缀，如v1.12.3）
     LATEST_TAG=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
     if [ -z "$LATEST_TAG" ]; then
         echo "获取最新版本失败，请检查网络连接"
         exit 1
     fi
+    
+    # 去除版本号中的v前缀（如v1.12.3 → 1.12.3，用于文件名）
+    LATEST_VERSION=${LATEST_TAG#v}
     
     # 根据系统架构确定下载文件名
     ARCH=$(uname -m)
@@ -60,8 +63,8 @@ install_singbox() {
             ;;
     esac
     
-    # 构建正确的下载链接（使用tar.gz格式）
-    DOWNLOAD_URL="https://github.com/SagerNet/sing-box/releases/download/${LATEST_TAG}/sing-box-${LATEST_TAG}-linux-${ARCH}.tar.gz"
+    # 构建正确的下载链接（文件名中版本号不含v前缀）
+    DOWNLOAD_URL="https://github.com/SagerNet/sing-box/releases/download/${LATEST_TAG}/sing-box-${LATEST_VERSION}-linux-${ARCH}.tar.gz"
     
     # 显示下载链接用于调试
     echo "下载地址: $DOWNLOAD_URL"
@@ -72,7 +75,7 @@ install_singbox() {
         exit 1
     fi
     
-    # 解压并安装（使用tar命令）
+    # 解压并安装
     mkdir -p /tmp/sing-box
     tar -zxf /tmp/sing-box.tar.gz -C /tmp/sing-box --strip-components=1
     
